@@ -1,11 +1,8 @@
 #!/bin/bash
 #
 # A script to setup a worker (transcoder/fetcher/uploader) on Hetzner Rescue System.
-# Modified to dynamically detect all NVMe drives and set up RAID 1.
+# Dynamically detects installimage path and sets up RAID 1 on all NVMe drives.
 #
-
-# Dependencies:
-# - installimage (comes with Hetzner Rescue System)
 
 # Exit immediately if a command exits with a non-zero status.
 # Treat unset variables as an error.
@@ -18,11 +15,36 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-# Exit if not running on Hetzner Rescue System
-if ! type installimage &> /dev/null; then
-  echo "This script is intended to be run on Hetzner Rescue System"
+# Function to detect installimage path
+get_installimage_path() {
+  # Try to resolve installimage from alias
+  local alias_path
+  alias_path=$(alias installimage 2>/dev/null | sed -n "s/alias installimage='\(.*\)'/\1/p")
+  if [ -n "$alias_path" ] && [ -x "$alias_path" ]; then
+    echo "$alias_path"
+    return
+  fi
+
+  # Fallback: check common locations
+  local possible_paths=(
+    "/root/.oldroot/nfs/install/installimage"
+    "/usr/bin/installimage"
+    "/sbin/installimage"
+  )
+  for path in "${possible_paths[@]}"; do
+    if [ -x "$path" ]; then
+      echo "$path"
+      return
+    fi
+  done
+
+  # If not found, exit with error
+  echo "installimage not found. Ensure you're running on Hetzner Rescue System." >&2
   exit 1
-fi
+}
+
+# Get installimage path
+INSTALLIMAGE=$(get_installimage_path)
 
 # Detect all NVMe drives (e.g., /dev/nvme0n1, /dev/nvme1n1, etc.)
 NVME_DISKS=$(ls /dev/nvme*n1 2>/dev/null | tr '\n' ',' | sed 's/,$//')
@@ -33,7 +55,7 @@ if [ -z "$NVME_DISKS" ] || [ $(echo "$NVME_DISKS" | grep -o ',' | wc -l) -lt 1 ]
   exit 1
 fi
 
-# Exit if Ubuntu 24.04 image is not present (adjust path if needed, assuming current dir or /root/)
+# Exit if Ubuntu 24.04 image is not present
 IMAGE_FILE="Ubuntu-2404-noble-amd64-base.tar.gz"
 if [ ! -f "/root/images/$IMAGE_FILE" ]; then
   echo "Ubuntu 24.04 image '$IMAGE_FILE' not found. Please ensure it's available."
@@ -41,7 +63,7 @@ if [ ! -f "/root/images/$IMAGE_FILE" ]; then
 fi
 
 # Run installimage with detected disks, RAID 1, and specified partitions
-installimage -a -d "$NVME_DISKS" -r yes -l 1 -i "$IMAGE_FILE" -p /boot/efi:esp:256M,swap:swap:4G,/:ext4:20G,/home:ext4:all
+"$INSTALLIMAGE" -a -d "$NVME_DISKS" -r yes -l 1 -i "$IMAGE_FILE" -p /boot/efi:esp:256M,swap:swap:4G,/:ext4:20G,/home:ext4:all
 
 echo "Installation completed. The system will reboot into Ubuntu 24.04."
 reboot
