@@ -19,7 +19,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # Exit if not running on Hetzner Rescue System
-if ! command -v installimage &> /dev/null; then
+if ! type installimage &> /dev/null; then
   echo "This script is intended to be run on Hetzner Rescue System"
   exit 1
 fi
