@@ -47,7 +47,7 @@ get_installimage_path() {
 INSTALLIMAGE=$(get_installimage_path)
 
 # Detect all NVMe drives (e.g., /dev/nvme0n1, /dev/nvme1n1, etc.)
-NVME_DISKS=$(ls /dev/nvme*n1 2>/dev/null | tr '\n' ',' | sed 's/,$//')
+NVME_DISKS=$(ls /dev/nvme*n1 2>/dev/null | xargs -n1 basename | tr '\n' ',' | sed 's/,$//')
 
 # Exit if no NVMe drives found or only one (RAID 1 requires at least two)
 if [ -z "$NVME_DISKS" ] || [ $(echo "$NVME_DISKS" | grep -o ',' | wc -l) -lt 1 ]; then
